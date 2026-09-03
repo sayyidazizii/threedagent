@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Office - L-Shape Layout (Open Center)</title>
+  <title>AI Office - L-Shape Layout (Remote Agent)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -20,6 +20,28 @@
       top: 0;
       left: 0;
       z-index: 1;
+    }
+
+    /* TOAST NOTIFIKASI */
+    #toast-notify {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-120px);
+      z-index: 9999;
+      background: rgba(239, 68, 68, 0.95);
+      color: white;
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
     }
 
     /* BUBBLE CHAT DINAMIS */
@@ -63,7 +85,7 @@
       50% { opacity: 1; }
     }
 
-    /* FLOATING ACTION DOCK (3 ICON BUTTONS) */
+    /* FLOATING ACTION DOCK (3 TOMBOL ICON) */
     .icon-dock {
       position: absolute;
       bottom: 24px;
@@ -138,7 +160,7 @@
       top: 16px;
       left: 16px;
       z-index: 50;
-      width: 300px;
+      width: 290px;
       background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(14px);
       border: 1px solid rgba(255, 255, 255, 0.18);
@@ -172,9 +194,7 @@
       margin-bottom: 8px;
       outline: none;
     }
-    .panel-input:focus {
-      border-color: #38bdf8;
-    }
+    .panel-input:focus { border-color: #38bdf8; }
     .btn-act {
       background: #0284c7;
       border: none;
@@ -188,12 +208,18 @@
     .btn-act:hover { background: #0369a1; }
   </style>
 
+  <!-- CDN Three.js r128 & OrbitControls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
 
   <div id="webgl-container"></div>
+
+  <!-- Toast Notifikasi Status -->
+  <div id="toast-notify">
+    <span id="toast-msg">Notifikasi</span>
+  </div>
 
   <!-- Bubble Chat Mengambang -->
   <div id="speech-bubble">
@@ -238,66 +264,19 @@
   </div>
 
   <script>
-    // 0. KOORDINAT STASIUN UTAMA
-    const STATIONS = {
-      desk: { pos: new THREE.Vector3(-2.0, 0.15, -2.08), rotY: Math.PI },
-      sofa: { pos: new THREE.Vector3(2.6, 0.08, 0.45), rotY: 0.1 },
-      dispenser: { pos: new THREE.Vector3(2.7, 0.15, -1.0), rotY: -Math.PI / 2 }
-    };
-
-    let agentState = 'WORKING'; // 'WORKING' | 'RESTING' | 'DRINKING' | 'WALKING'
-    let targetStation = 'desk';
-
-    const bubbleEl = document.getElementById('speech-bubble');
-    const bubbleEmoji = document.getElementById('bubble-emoji');
-    const bubbleText = document.getElementById('bubble-text');
-
-    function updateBubble() {
-      if (agentState === 'WORKING') {
-        bubbleEmoji.innerText = '💻';
-        bubbleText.innerHTML = 'Sedang coding task<span class="typing-dots">...</span>';
-      } else if (agentState === 'RESTING') {
-        bubbleEmoji.innerText = '🛋️';
-        bubbleText.innerText = 'Santai rehat dulu 💤';
-      } else if (agentState === 'DRINKING') {
-        bubbleEmoji.innerText = '🥤';
-        bubbleText.innerText = 'Gluk gluk... Segar banget! ✨';
-      } else if (agentState === 'WALKING') {
-        if (targetStation === 'sofa') {
-          bubbleEmoji.innerText = '☕';
-          bubbleText.innerText = 'Capek, mau ngopi ke sofa...';
-        } else if (targetStation === 'dispenser') {
-          bubbleEmoji.innerText = '💧';
-          bubbleText.innerText = 'Haus, jalan ambil minum...';
-        } else {
-          bubbleEmoji.innerText = '🏃‍♂️';
-          bubbleText.innerText = 'Ada task baru! Otw meja...';
-        }
-      }
+    // FUNGSI TOAST NOTIFIKASI
+    function showToast(msg, isSuccess = false) {
+      const toast = document.getElementById('toast-notify');
+      const toastMsg = document.getElementById('toast-msg');
+      toastMsg.innerText = msg;
+      toast.style.background = isSuccess ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      toast.style.opacity = '1';
+      setTimeout(() => {
+        toast.style.transform = 'translateX(-50%) translateY(-120px)';
+        toast.style.opacity = '0';
+      }, 3800);
     }
-
-    window.changeAgentState = function(target) {
-      if (agentState === 'WALKING') return;
-
-      if (target === 'working' && agentState !== 'WORKING') {
-        targetStation = 'desk';
-        agentState = 'WALKING';
-        updateBubble();
-      } else if (target === 'resting' && agentState !== 'RESTING') {
-        targetStation = 'sofa';
-        agentState = 'WALKING';
-        updateBubble();
-      } else if (target === 'drinking' && agentState !== 'DRINKING') {
-        targetStation = 'dispenser';
-        agentState = 'WALKING';
-        updateBubble();
-      }
-    };
-
-    // EVENT LISTENER 3 TOMBOL DOCK MANUAL
-    document.getElementById('btn-work').addEventListener('click', () => changeAgentState('working'));
-    document.getElementById('btn-rest').addEventListener('click', () => changeAgentState('resting'));
-    document.getElementById('btn-drink').addEventListener('click', () => changeAgentState('drinking'));
 
     // 1. SETUP THREE.JS PROYEKSI AKSONOMETRIK
     const container = document.getElementById('webgl-container');
@@ -317,10 +296,13 @@
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableRotate = true;
-    controls.enableZoom = true;
-    controls.target.set(0, 0.7, 0);
+    let controls = null;
+    if (typeof THREE.OrbitControls !== 'undefined') {
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableRotate = true;
+      controls.enableZoom = true;
+      controls.target.set(0, 0.7, 0);
+    }
 
     // 2. LIGHTING
     const hemiLight = new THREE.HemisphereLight(0xfff7ed, 0x334155, 1.4);
@@ -368,7 +350,7 @@
     sideWall.receiveShadow = true;
     roomGroup.add(sideWall);
 
-    // Jendela Kota Luas di Dinding Belakang
+    // Jendela Kota Luas
     const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.8, 0.08), new THREE.MeshStandardMaterial({ color: 0x475569 }));
     windowFrame.position.set(1.0, 1.8, -3.18);
     const windowGlass = new THREE.Mesh(
@@ -385,21 +367,20 @@
       roomGroup.add(bldg);
     });
 
-    // Papan Poster di Tembok Belakang
+    // Poster & Whiteboard
     const poster1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 0.02), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
     poster1.position.set(-2.0, 2.1, -3.18);
     const poster2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.02), new THREE.MeshStandardMaterial({ color: 0x0f766e }));
     poster2.position.set(-0.4, 2.1, -3.18);
     roomGroup.add(poster1, poster2);
 
-    // Papan Tulis Analisis di Tembok Kiri
     const sideBoard = new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.2, 3.4), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
     sideBoard.position.set(-4.28, 2.0, 0.0);
     const sideChart = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.4, 2.2), new THREE.MeshBasicMaterial({ color: 0x3b82f6 }));
     sideChart.position.set(-4.26, 2.0, -0.2);
     roomGroup.add(sideBoard, sideChart);
 
-    // 4. FURNITUR: KURSI ERGONOMIS & MEJA PC DUAL MONITOR
+    // 4. FURNITUR & MEJA DUAL MONITOR
     const steelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3 });
     const chromeMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
     const chairMeshMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
@@ -423,6 +404,7 @@
 
       const cylinderLift = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.38), chromeMat);
       cylinderLift.position.y = 0.24;
+      cylinderLift.castShadow = true;
       chairGroup.add(cylinderLift);
 
       const seatCushion = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.09, 0.46), chairMeshMat);
@@ -464,13 +446,10 @@
         });
       });
 
-      // CPU Tower
+      // CPU
       const cpuTower = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.44, 0.44), cpuCaseMat);
       cpuTower.position.set(0.46, 0.22, -0.05);
-      cpuTower.castShadow = true;
-      const powerLed = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), new THREE.MeshBasicMaterial({ color: primaryColor }));
-      powerLed.position.set(0.46, 0.38, 0.18);
-      deskGroup.add(cpuTower, powerLed);
+      deskGroup.add(cpuTower);
 
       // Keyboard & Mouse
       const keyboard = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.02, 0.15), steelMat);
@@ -479,7 +458,7 @@
       mouse.position.set(0.24, 0.94, 0.15);
       deskGroup.add(keyboard, mouse);
 
-      // Dual Monitors
+      // Monitors
       const mon1 = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.36, 0.03), steelMat);
       mon1.position.set(-0.22, 1.2, -0.14);
       mon1.rotation.y = 0.12;
@@ -508,22 +487,22 @@
       roomGroup.add(deskGroup);
     }
 
-    // BUAT TATA LETAK MEJA L-SHAPE (5 STASIUN KERJA)
-    createDualMonitorDesk(-2.0, -2.6, 0x38bdf8, 0x818cf8, 0); // Meja 1: Agent Utama
+    // 5 STASIUN KERJA L-SHAPE
+    createDualMonitorDesk(-2.0, -2.6, 0x38bdf8, 0x818cf8, 0); // Meja 1: Agent
     createDualMonitorDesk(-0.4, -2.6, 0x10b981, 0xf59e0b, 0); // Meja 2: Coworker 1
     createDualMonitorDesk(-3.7, -1.6, 0x22c55e, 0x06b6d4, Math.PI / 2); // Meja 3: Coworker 2
     createDualMonitorDesk(-3.7, -0.05, 0xeab308, 0xf97316, Math.PI / 2); // Meja 4: Coworker 3
     createDualMonitorDesk(-3.7, 1.5, 0xf472b6, 0xc084fc, Math.PI / 2);  // Meja 5: Coworker Wanita
 
-    // 5. SOFA SANTAI & MEJA KOPI
+    // SOFA SANTAI
     const loungeGroup = new THREE.Group();
     loungeGroup.position.set(2.6, 0, 0.5);
     const sofaMat = new THREE.MeshStandardMaterial({ color: 0xe67e22, roughness: 0.35 });
     const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.36, 0.8), sofaMat); sofaBase.position.y = 0.22;
     const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 0.22), sofaMat); sofaBack.position.set(0, 0.55, -0.3);
-    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.44, 0.8), sofaMat); armL.position.set(-0.7, 0.38, 0);
-    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.44, 0.8), sofaMat); armR.position.set(0.7, 0.38, 0);
-    loungeGroup.add(sofaBase, sofaBack, armL, armR);
+    const sofaArmL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.44, 0.8), sofaMat); sofaArmL.position.set(-0.7, 0.38, 0);
+    const sofaArmR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.44, 0.8), sofaMat); sofaArmR.position.set(0.7, 0.38, 0);
+    loungeGroup.add(sofaBase, sofaBack, sofaArmL, sofaArmR);
 
     const coffeeTable = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 24), new THREE.MeshStandardMaterial({ color: 0x0284c7, transparent: true, opacity: 0.7 }));
     coffeeTable.position.set(0, 0.32, 0.75);
@@ -532,11 +511,12 @@
     loungeGroup.add(coffeeTable, tableLeg);
     roomGroup.add(loungeGroup);
 
-    // 6. POHON MONSTERA & DISPENSER AIR GALON
+    // MONSTERA & DISPENSER AIR
     const plantGroup = new THREE.Group();
     plantGroup.position.set(3.4, 0, -2.2);
     const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.54, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 }));
-    pot.position.y = 0.27; plantGroup.add(pot);
+    pot.position.y = 0.27;
+    plantGroup.add(pot);
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.4 });
     for (let i = 0; i < 7; i++) {
       const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), leafMat);
@@ -558,10 +538,12 @@
     dispenserGroup.add(dispenserBody, tapHot, tapCold, waterGallon);
     roomGroup.add(dispenserGroup);
 
-    // 7. MEMBUAT 5 KARAKTER
+    // 5. PEMBUATAN 5 KARAKTER
     const skinMat = new THREE.MeshStandardMaterial({ color: 0xffcfab, roughness: 0.35 });
     const darkPantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
     const shoeMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.3 });
+    const eyeGeo = new THREE.SphereGeometry(0.038, 12, 12);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
 
     function makeCapsule(radius, height, material) {
       const g = new THREE.Group();
@@ -592,7 +574,6 @@
       const hairMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.35 });
       const baseHair = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 20), hairMat);
       baseHair.position.set(0, 0.05, -0.04);
-      baseHair.scale.set(0.98, 0.95, 0.95);
       hairGroup.add(baseHair);
       const topQuiff = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.13, 0.36), hairMat);
       topQuiff.position.set(0.04, 0.24, -0.02);
@@ -616,7 +597,7 @@
       return hairGroup;
     }
 
-    // === 1. KARAKTER AI AGENT (UTAMA) ===
+    // AI AGENT UTAMA (Kemeja Putih + Dasi Merah)
     const whiteShirtMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
     const redTieMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3 });
 
@@ -632,8 +613,6 @@
     agentHeadGroup.position.set(0, 1.12, 0);
     const agentHead = new THREE.Mesh(new THREE.SphereGeometry(0.27, 24, 24), skinMat);
     agentHeadGroup.add(agentHead, createNeatHair(0x18181b));
-    const eyeGeo = new THREE.SphereGeometry(0.038, 12, 12);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
     const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.1, 0.02, 0.24);
     const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.1, 0.02, 0.24);
     agentHeadGroup.add(eyeL, eyeR);
@@ -656,7 +635,7 @@
     const sR = new THREE.Mesh(shoeGeo, shoeMat); sR.position.set(0, -0.26, 0.03);
     agentLegR.add(legRMesh, sR); agentRoot.add(agentLegR);
 
-    // === MEMBUAT 4 REKAN KERJA ===
+    // 4 REKAN KERJA
     function createCoworker(x, z, shirtMat, hairColor, rotY = Math.PI, isFemale = false, hasGlasses = false) {
       const root = new THREE.Group();
       root.position.set(x, 0.15, z);
@@ -712,10 +691,286 @@
 
     const coworkers = [coworker1, coworker2, coworker3, coworker4];
 
-    // POSISI AWAL AGENT
+    // 6. STATE & STASIUN
+    const STATIONS = {
+      desk: { pos: new THREE.Vector3(-2.0, 0.15, -2.08), rotY: Math.PI },
+      sofa: { pos: new THREE.Vector3(2.6, 0.08, 0.45), rotY: 0.1 },
+      dispenser: { pos: new THREE.Vector3(2.7, 0.15, -1.0), rotY: -Math.PI / 2 }
+    };
+
+    let agentState = 'WORKING';
+    let targetStation = 'desk';
+
     agentRoot.position.copy(STATIONS.desk.pos);
     agentRoot.rotation.y = STATIONS.desk.rotY;
 
-    // 8. LOGIKA KONEKSI REMOTE LOCAL AGENT
+    const bubbleEl = document.getElementById('speech-bubble');
+    const bubbleEmoji = document.getElementById('bubble-emoji');
+    const bubbleText = document.getElementById('bubble-text');
+
+    function updateBubble() {
+      if (agentState === 'WORKING') {
+        bubbleEmoji.innerText = '💻';
+        bubbleText.innerHTML = 'Sedang coding task<span class="typing-dots">...</span>';
+      } else if (agentState === 'RESTING') {
+        bubbleEmoji.innerText = '🛋️';
+        bubbleText.innerText = 'Santai rehat dulu 💤';
+      } else if (agentState === 'DRINKING') {
+        bubbleEmoji.innerText = '🥤';
+        bubbleText.innerText = 'Gluk gluk... Segar banget! ✨';
+      } else if (agentState === 'WALKING') {
+        if (targetStation === 'sofa') {
+          bubbleEmoji.innerText = '☕';
+          bubbleText.innerText = 'Capek, mau rehat ke sofa...';
+        } else if (targetStation === 'dispenser') {
+          bubbleEmoji.innerText = '💧';
+          bubbleText.innerText = 'Haus, jalan ambil minum...';
+        } else {
+          bubbleEmoji.innerText = '🏃‍♂️';
+          bubbleText.innerText = 'Ada task baru! Otw meja...';
+        }
+      }
+    }
+
+    window.changeAgentState = function(target) {
+      if (agentState === 'WALKING') return;
+
+      if (target === 'working' && agentState !== 'WORKING') {
+        targetStation = 'desk';
+        agentState = 'WALKING';
+        updateBubble();
+      } else if (target === 'resting' && agentState !== 'RESTING') {
+        targetStation = 'sofa';
+        agentState = 'WALKING';
+        updateBubble();
+      } else if (target === 'drinking' && agentState !== 'DRINKING') {
+        targetStation = 'dispenser';
+        agentState = 'WALKING';
+        updateBubble();
+      }
+    };
+
+    // TOMBOL MANUAL DOCK BAWAH
+    document.getElementById('btn-work').addEventListener('click', () => changeAgentState('working'));
+    document.getElementById('btn-rest').addEventListener('click', () => changeAgentState('resting'));
+    document.getElementById('btn-drink').addEventListener('click', () => changeAgentState('drinking'));
+
+    // 7. WEBSOCKET LOGIC & NOTIFIKASI OFFLINE
     let socket = null;
-    const statusBadge = document.getE
+    const statusBadge = document.getElementById('status-badge');
+
+    document.getElementById('btn-link').addEventListener('click', () => {
+      const url = document.getElementById('cfg-url').value;
+      if (socket) {
+        socket.close();
+      }
+
+      try {
+        socket = new WebSocket(url);
+
+        socket.onopen = () => {
+          statusBadge.innerText = 'Online';
+          statusBadge.style.background = '#10b981';
+          bubbleEmoji.innerText = '🤝';
+          bubbleText.innerText = 'Terhubung ke Local Companion!';
+          showToast('✅ Berhasil terhubung ke Agent Local!', true);
+        };
+
+        socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.state) changeAgentState(data.state);
+          if (data.bubbleText) bubbleText.innerText = data.bubbleText;
+          if (data.emoji) bubbleEmoji.innerText = data.emoji;
+        };
+
+        socket.onerror = () => {
+          statusBadge.innerText = 'Offline';
+          statusBadge.style.background = '#ef4444';
+          showToast('❌ Gagal konek! Pastikan "node bridge.js" aktif di laptop Anda.');
+        };
+
+        socket.onclose = () => {
+          statusBadge.innerText = 'Offline';
+          statusBadge.style.background = '#ef4444';
+        };
+      } catch (err) {
+        showToast('❌ URL WebSocket tidak valid!');
+      }
+    });
+
+    document.getElementById('btn-run-task').addEventListener('click', () => {
+      // CEK JIKA BELUM TERHUBUNG KE LOCAL
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        showToast('⚠️ Belum terhubung dengan Agent Local! Nyalakan bridge dan klik Link dahulu.');
+        return;
+      }
+
+      const cliTool = document.getElementById('cfg-cli').value;
+      const projectPath = document.getElementById('cfg-path').value.trim();
+      const prompt = document.getElementById('cfg-prompt').value.trim();
+
+      if (!projectPath || !prompt) {
+        showToast('⚠️ Path folder project dan prompt harus diisi!');
+        return;
+      }
+
+      socket.send(JSON.stringify({
+        type: 'RUN_TASK',
+        cliTool,
+        projectPath,
+        prompt
+      }));
+    });
+
+    // 8. ANIMASI UTAMA LOOP
+    const clock = new THREE.Clock();
+    const tempVec = new THREE.Vector3();
+
+    function animateScene() {
+      const time = clock.getElapsedTime();
+
+      // REKAN KERJA MENGETIK
+      coworkers.forEach((cw, idx) => {
+        const speed = 20 + idx * 3;
+        const tapL = Math.sin(time * speed) * 0.05;
+        const tapR = Math.cos(time * speed) * 0.05;
+        cw.armL.shoulder.rotation.set(-0.7, 0.2, 0.1);
+        cw.armL.elbow.rotation.set(-0.9 + tapL, 0, 0);
+        cw.armR.shoulder.rotation.set(-0.7, -0.2, -0.1);
+        cw.armR.elbow.rotation.set(-0.9 + tapR, 0, 0);
+
+        const glance = Math.sin(time * (1.2 + idx * 0.4)) > 0.65 ? 0.3 : 0;
+        if (THREE.MathUtils) {
+          cw.headGroup.rotation.y = THREE.MathUtils.lerp(cw.headGroup.rotation.y, -glance, 0.1);
+        }
+        cw.headGroup.rotation.x = 0.16 + Math.sin(time * (8 + idx * 2)) * 0.03;
+      });
+
+      // AI AGENT UTAMA
+      if (agentState === 'WORKING') {
+        waterCup.visible = false;
+        agentRoot.position.copy(STATIONS.desk.pos);
+        agentRoot.rotation.y = STATIONS.desk.rotY;
+
+        agentLegL.rotation.x = -Math.PI / 2.1;
+        agentLegR.rotation.x = -Math.PI / 2.1;
+        agentLegL.position.z = 0.08;
+        agentLegR.position.z = 0.08;
+
+        const tapL = Math.sin(time * 20) * 0.05;
+        const tapR = Math.cos(time * 20) * 0.05;
+        agentArmLData.shoulder.rotation.set(-0.7, 0.2, 0.1);
+        agentArmRData.shoulder.rotation.set(-0.7, -0.2, -0.1);
+        agentArmLData.elbow.rotation.set(-0.9 + tapL, 0, 0);
+        agentArmRData.elbow.rotation.set(-0.9 + tapR, 0, 0);
+
+        agentHeadGroup.rotation.x = 0.18 + Math.sin(time * 8) * 0.03;
+        agentHeadGroup.rotation.y = 0;
+        agentRoot.rotation.z = 0;
+
+      } else if (agentState === 'RESTING') {
+        waterCup.visible = false;
+        agentRoot.position.copy(STATIONS.sofa.pos);
+        agentRoot.rotation.y = STATIONS.sofa.rotY;
+
+        agentLegL.rotation.x = -Math.PI / 2.2;
+        agentLegR.rotation.x = -Math.PI / 2.2;
+        agentLegL.position.z = 0.1;
+        agentLegR.position.z = 0.1;
+
+        agentArmLData.shoulder.rotation.set(-0.2, 0, 0.4);
+        agentArmLData.elbow.rotation.set(-0.3, 0, 0);
+        agentArmRData.shoulder.rotation.set(-0.2, 0, -0.4);
+        agentArmRData.elbow.rotation.set(-0.3, 0, 0);
+
+        const breath = Math.sin(time * 3) * 0.03;
+        agentHeadGroup.rotation.x = -0.1 + breath;
+        agentRoot.rotation.z = 0;
+
+      } else if (agentState === 'DRINKING') {
+        waterCup.visible = true;
+        agentRoot.position.copy(STATIONS.dispenser.pos);
+        agentRoot.rotation.y = STATIONS.dispenser.rotY;
+
+        agentLegL.rotation.x = 0; agentLegR.rotation.x = 0;
+        agentLegL.position.z = 0; agentLegR.position.z = 0;
+
+        const sip = Math.sin(time * 4) * 0.1;
+        agentArmRData.shoulder.rotation.set(-1.4 + sip, -0.3, 0.4);
+        agentArmRData.elbow.rotation.set(-1.2, 0, 0);
+        agentArmLData.shoulder.rotation.set(0.1, 0, 0.15);
+        agentArmLData.elbow.rotation.set(0, 0, 0);
+
+        agentHeadGroup.rotation.x = -0.25 - sip;
+        agentRoot.rotation.z = 0;
+
+      } else if (agentState === 'WALKING') {
+        waterCup.visible = false;
+        agentLegL.position.z = 0;
+        agentLegR.position.z = 0;
+
+        const walkCycle = time * 14;
+        const legSwing = Math.sin(walkCycle) * 0.72;
+
+        agentLegL.rotation.x = legSwing;
+        agentLegR.rotation.x = -legSwing;
+
+        agentArmLData.shoulder.rotation.set(-legSwing * 0.8, 0, 0.15);
+        agentArmLData.elbow.rotation.set(0, 0, 0);
+        agentArmRData.shoulder.rotation.set(legSwing * 0.8, 0, -0.15);
+        agentArmRData.elbow.rotation.set(0, 0, 0);
+
+        agentRoot.position.y = 0.15 + Math.abs(Math.sin(walkCycle)) * 0.12;
+        agentRoot.rotation.z = Math.sin(walkCycle) * 0.08;
+        agentHeadGroup.rotation.y = Math.sin(walkCycle) * 0.1;
+
+        const targetPos = STATIONS[targetStation].pos;
+        const dx = targetPos.x - agentRoot.position.x;
+        const dz = targetPos.z - agentRoot.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        agentRoot.rotation.y = Math.atan2(dx, dz);
+
+        const WALK_SPEED = 0.026;
+        if (dist > WALK_SPEED) {
+          agentRoot.position.x += (dx / dist) * WALK_SPEED;
+          agentRoot.position.z += (dz / dist) * WALK_SPEED;
+        } else {
+          agentRoot.position.copy(targetPos);
+          if (targetStation === 'desk') agentState = 'WORKING';
+          else if (targetStation === 'sofa') agentState = 'RESTING';
+          else if (targetStation === 'dispenser') agentState = 'DRINKING';
+          updateBubble();
+        }
+      }
+
+      // UPDATE POSISI BALON BICARA
+      agentHeadGroup.getWorldPosition(tempVec);
+      tempVec.y += 0.55;
+      tempVec.project(camera);
+
+      const x = (tempVec.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-(tempVec.y * 0.5) + 0.5) * window.innerHeight;
+      bubbleEl.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px)`;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      animateScene();
+      if (controls) controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      const newAspect = window.innerWidth / window.innerHeight;
+      camera.left = -d * newAspect;
+      camera.right = d * newAspect;
+      camera.top = d;
+      camera.bottom = -d;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
