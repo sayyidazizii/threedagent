@@ -1,4 +1,4 @@
-// bridge.js - Menghubungkan Browser Dashboard ke Terminal Lokal Anda (Support Custom CLI)
+// bridge.js - Menghubungkan Browser Dashboard ke Terminal Lokal Anda (Auto-Workspace Lock)
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -18,18 +18,20 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(raw);
 
       if (data.type === 'RUN_TASK') {
-        // Mendukung format baru (customCmd) maupun format lama (cliTool)
         const execCmd = (data.customCmd || data.cliTool || 'agy').trim();
         const projectPath = (data.projectPath || '').trim();
-        const prompt = (data.prompt || '').trim();
+        const rawPrompt = (data.prompt || '').trim();
+
+        // 1. Bersihkan tanda kutip ganda yang tidak sengaja terketik di awal/akhir prompt
+        const cleanPrompt = rawPrompt.replace(/^["']|["']$/g, '').trim();
 
         console.log(`\n========================================`);
         console.log(`Command CLI : \x1b[33m${execCmd}\x1b[0m`);
         console.log(`Direktori   : \x1b[34m${projectPath}\x1b[0m`);
-        console.log(`Prompt      : "${prompt}"`);
+        console.log(`Prompt Asli : "${cleanPrompt}"`);
         console.log(`========================================\n`);
 
-        // 1. Validasi keberadaan folder lokal
+        // 2. Validasi keberadaan folder lokal
         if (!fs.existsSync(projectPath)) {
           console.error(`\x1b[31m[ERROR]\x1b[0m Folder tidak ditemukan: ${projectPath}`);
           ws.send(JSON.stringify({
@@ -40,31 +42,44 @@ wss.on('connection', (ws) => {
           return;
         }
 
-        // 2. Pindahkan avatar 3D ke meja kerja
+        // 3. Pindahkan avatar 3D ke meja kerja
         ws.send(JSON.stringify({
           state: 'working',
           emoji: '💻',
-          bubbleText: `[${execCmd}] Sedang memproses...`
+          bubbleText: `[${execCmd.split(' ')[0]}] Sedang bekerja...`
         }));
 
-        // 3. Susun perintah dinamis sesuai input pengguna
-        // Contoh hasil: agy "buatkan file readme..." atau opencode run "..."
-        const safePrompt = prompt.replace(/"/g, '\\"');
-        const fullCommand = `${execCmd} "${safePrompt}"`;
+        // 4. Pastikan Antigravity mengunci workspace ke folder project Anda (bukan scratchpad)
+        let finalCmd = execCmd;
+        const normalizedPath = projectPath.replace(/\\/g, '/');
+
+        if (finalCmd.startsWith('agy') && !finalCmd.includes('--add-dir')) {
+          if (finalCmd.includes(' -p')) {
+            finalCmd = finalCmd.replace(' -p', ` --add-dir "${normalizedPath}" -p`);
+          } else {
+            finalCmd = `${finalCmd} --add-dir "${normalizedPath}"`;
+          }
+        }
+
+        // 5. Tambahkan instruksi tegas agar file disimpan di folder proyek
+        const enforcedPrompt = `${cleanPrompt}. Simpan atau ubah file langsung di dalam folder: ${normalizedPath}`;
+        const safePrompt = enforcedPrompt.replace(/"/g, '\\"');
+        const fullCommand = `${finalCmd} "${safePrompt}"`;
 
         console.log(`Menjalankan di terminal: \x1b[36m${fullCommand}\x1b[0m\n`);
 
+        // Eksekusi proses di terminal lokal
         const child = spawn(fullCommand, {
           cwd: path.resolve(projectPath),
           shell: true
         });
 
-        // 4. Tangkap output terminal secara realtime
+        // 6. Tangkap output terminal secara realtime
         child.stdout.on('data', (chunk) => {
           const log = chunk.toString().trim();
-          console.log(`[${execCmd}]:`, log);
+          console.log(`[OUT]:`, log);
 
-          // Ambil baris terakhir terminal untuk dipajang di balon obrolan 3D
+          // Update teks balon bicara di atas kepala avatar
           const lastLine = log.split('\n').map(l => l.trim()).filter(Boolean).pop();
           if (lastLine) {
             ws.send(JSON.stringify({
@@ -80,7 +95,7 @@ wss.on('connection', (ws) => {
           console.error(`\x1b[31m[STDERR]:\x1b[0m`, errText);
         });
 
-        // 5. Ketika proses selesai
+        // 7. Ketika proses selesai
         child.on('close', (code) => {
           console.log(`\nTask selesai dengan status code: ${code}`);
 
@@ -94,13 +109,13 @@ wss.on('connection', (ws) => {
             ws.send(JSON.stringify({
               state: 'resting',
               emoji: '⚠️',
-              bubbleText: `Selesai dengan kode error: ${code}`
+              bubbleText: `Selesai dengan status: ${code}`
             }));
           }
         });
 
         child.on('error', (err) => {
-          console.error(`\x1b[31m[FAILED]:\x1b[0m Gagal mengeksekusi perintah:`, err);
+          console.error(`\x1b[31m[FAILED]:\x1b[0m Gagal mengeksekusi:`, err);
           ws.send(JSON.stringify({
             state: 'resting',
             emoji: '❌',
