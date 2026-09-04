@@ -1,4 +1,4 @@
-// bridge.js - Menghubungkan Browser Netlify ke Terminal Lokal Anda
+// bridge.js - Menghubungkan Browser Dashboard ke Terminal Lokal Anda (Support Custom CLI)
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -7,8 +7,8 @@ const fs = require('fs');
 const PORT = 8080;
 const wss = new WebSocket.Server({ port: PORT });
 
-console.log(`\x1b[32m[AKTIF]\x1b[0m Bridge Server berjalan di port: ${PORT}`);
-console.log(`Menunggu instruksi dari browser Netlify...\n`);
+console.log(`\x1b[32m[AKTIF]\x1b[0m Bridge Server dinamis berjalan di port: ${PORT}`);
+console.log(`Menunggu instruksi dari web dashboard...\n`);
 
 wss.on('connection', (ws) => {
   console.log(`\x1b[36m[CONNECTED]\x1b[0m Web Dashboard terhubung!`);
@@ -18,44 +18,54 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(raw);
 
       if (data.type === 'RUN_TASK') {
-        const { cliTool, projectPath, prompt } = data;
-        console.log(`\n================================`);
-        console.log(`Memulai Task Baru:`);
-        console.log(`Engine CLI : ${cliTool}`);
-        console.log(`Direktori  : ${projectPath}`);
-        console.log(`Prompt     : ${prompt}`);
-        console.log(`================================\n`);
+        // Mendukung format baru (customCmd) maupun format lama (cliTool)
+        const execCmd = (data.customCmd || data.cliTool || 'agy').trim();
+        const projectPath = (data.projectPath || '').trim();
+        const prompt = (data.prompt || '').trim();
 
-        // Validasi folder lokal
+        console.log(`\n========================================`);
+        console.log(`Command CLI : \x1b[33m${execCmd}\x1b[0m`);
+        console.log(`Direktori   : \x1b[34m${projectPath}\x1b[0m`);
+        console.log(`Prompt      : "${prompt}"`);
+        console.log(`========================================\n`);
+
+        // 1. Validasi keberadaan folder lokal
         if (!fs.existsSync(projectPath)) {
+          console.error(`\x1b[31m[ERROR]\x1b[0m Folder tidak ditemukan: ${projectPath}`);
           ws.send(JSON.stringify({
             state: 'resting',
             emoji: '❌',
-            bubbleText: 'Folder path tidak ditemukan!'
+            bubbleText: 'Error: Folder tidak ditemukan!'
           }));
           return;
         }
 
-        // Pindahkan agent ke stasiun meja (Kerja)
+        // 2. Pindahkan avatar 3D ke meja kerja
         ws.send(JSON.stringify({
           state: 'working',
           emoji: '💻',
-          bubbleText: `[${cliTool}] Memulai eksekusi task...`
+          bubbleText: `[${execCmd}] Sedang memproses...`
         }));
 
-        // Jalankan perintah CLI di direktori target
-        // Sesuaikan argumen sesuai CLI Anda (contoh: "opencode run <prompt>")
-        const child = spawn(cliTool, ['run', prompt], {
+        // 3. Susun perintah dinamis sesuai input pengguna
+        // Contoh hasil: agy "buatkan file readme..." atau opencode run "..."
+        const safePrompt = prompt.replace(/"/g, '\\"');
+        const fullCommand = `${execCmd} "${safePrompt}"`;
+
+        console.log(`Menjalankan di terminal: \x1b[36m${fullCommand}\x1b[0m\n`);
+
+        const child = spawn(fullCommand, {
           cwd: path.resolve(projectPath),
           shell: true
         });
 
+        // 4. Tangkap output terminal secara realtime
         child.stdout.on('data', (chunk) => {
           const log = chunk.toString().trim();
-          console.log(`[${cliTool}]:`, log);
+          console.log(`[${execCmd}]:`, log);
 
-          // Ambil baris terakhir terminal untuk dipajang di balon bicara
-          const lastLine = log.split('\n').filter(Boolean).pop();
+          // Ambil baris terakhir terminal untuk dipajang di balon obrolan 3D
+          const lastLine = log.split('\n').map(l => l.trim()).filter(Boolean).pop();
           if (lastLine) {
             ws.send(JSON.stringify({
               state: 'working',
@@ -66,16 +76,35 @@ wss.on('connection', (ws) => {
         });
 
         child.stderr.on('data', (err) => {
-          console.error(`[ERR]:`, err.toString());
+          const errText = err.toString().trim();
+          console.error(`\x1b[31m[STDERR]:\x1b[0m`, errText);
         });
 
+        // 5. Ketika proses selesai
         child.on('close', (code) => {
           console.log(`\nTask selesai dengan status code: ${code}`);
-          // Setelah selesai, agent berjalan ke sofa santai
+
+          if (code === 0) {
+            ws.send(JSON.stringify({
+              state: 'resting',
+              emoji: '🛋️',
+              bubbleText: 'Task selesai! Santai di sofa ☕'
+            }));
+          } else {
+            ws.send(JSON.stringify({
+              state: 'resting',
+              emoji: '⚠️',
+              bubbleText: `Selesai dengan kode error: ${code}`
+            }));
+          }
+        });
+
+        child.on('error', (err) => {
+          console.error(`\x1b[31m[FAILED]:\x1b[0m Gagal mengeksekusi perintah:`, err);
           ws.send(JSON.stringify({
             state: 'resting',
-            emoji: '🛋️',
-            bubbleText: 'Selesai! Sedang rehat di sofa.'
+            emoji: '❌',
+            bubbleText: 'Gagal menjalankan perintah!'
           }));
         });
       }

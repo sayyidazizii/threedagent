@@ -240,12 +240,15 @@
       <button id="btn-link" class="btn-act">Link</button>
     </div>
 
-    <label class="field-lbl">Engine CLI Agent:</label>
-    <select id="cfg-cli" class="panel-input">
-      <option value="opencode">OpenCode</option>
-      <option value="antigravity">Antigravity CLI</option>
+    <!-- INPUT CUSTOM CLI COMMAND (BEBAS KETIK / PILIH) -->
+    <label class="field-lbl">Custom CLI Command:</label>
+    <input id="cfg-cmd" class="panel-input" list="cli-presets" value="agy" placeholder="Contoh: agy, opencode run, kiro">
+    <datalist id="cli-presets">
+      <option value="agy">Antigravity CLI (agy)</option>
+      <option value="opencode run">OpenCode (opencode run)</option>
       <option value="kiro">Kiro</option>
-    </select>
+      <option value="claude">Claude Code</option>
+    </datalist>
 
     <label class="field-lbl">Path Folder Project Local:</label>
     <input id="cfg-path" class="panel-input" placeholder="Contoh: D:/projects/web-ku">
@@ -798,27 +801,28 @@
       }
     });
 
+    // KIRIM TASK KE LOCAL (MENDUKUNG CUSTOM CLI INPUT)
     document.getElementById('btn-run-task').addEventListener('click', () => {
-      // CEK JIKA BELUM TERHUBUNG KE LOCAL
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         showToast('⚠️ Belum terhubung dengan Agent Local! Nyalakan bridge dan klik Link dahulu.');
         return;
       }
 
-      const cliTool = document.getElementById('cfg-cli').value;
+      const customCmd = document.getElementById('cfg-cmd').value.trim();
       const projectPath = document.getElementById('cfg-path').value.trim();
       const prompt = document.getElementById('cfg-prompt').value.trim();
 
-      if (!projectPath || !prompt) {
-        showToast('⚠️ Path folder project dan prompt harus diisi!');
+      if (!customCmd || !projectPath || !prompt) {
+        showToast('⚠️ Command, Path folder, dan Prompt harus diisi!');
         return;
       }
 
       socket.send(JSON.stringify({
         type: 'RUN_TASK',
-        cliTool,
-        projectPath,
-        prompt
+        customCmd: customCmd,
+        cliTool: customCmd,
+        projectPath: projectPath,
+        prompt: prompt
       }));
     });
 
